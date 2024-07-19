@@ -13,9 +13,10 @@ def segment_many(model, imgs, device="cpu"):
 
 def segment_image(model, img, device="cpu", pad_stride=32):
     img = _ensure_2d(img)
-    img = img[None]  # To add a batch dimension
+    img = img[None]  # To add channel dimension
     with torch.no_grad():
         tensor = torch.from_numpy(img).to(device)
+        tensor = tensor[None]  # To add batch dimension
         padded_tensor, pads = pad_to(tensor, pad_stride)
         res_tensor = model(padded_tensor)
         res_unp = unpad(res_tensor, pads)
