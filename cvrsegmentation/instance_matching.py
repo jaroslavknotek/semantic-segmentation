@@ -43,7 +43,32 @@ class SegmentationInstanceFeatures:
     shape: str
 
 
-def match_precipitates(bin_prediction, label, component_limit=500):
+def measure_precision_recall_f1(bin_prediction, label, component_limit=500):
+    df, _, _ = match_instances(
+        bin_prediction,
+        label,
+        component_limit=component_limit,
+    )
+
+    grains_pred = len(df[~df["pred_id"].isna()])
+    grains_label = len(df[~df["label_id"].isna()])
+
+    tp = df[~df["label_id"].isna() & ~df["pred_id"].isna()]
+    if grains_pred != 0:
+        precision = len(tp) / grains_pred
+    else:
+        precision = np.nan
+
+    if grains_label != 0:
+        recall = len(tp) / grains_label
+    else:
+        recall = np.nan
+
+    f1 = 2 * (precision * recall) / (precision + recall)
+    return precision, recall, f1
+
+
+def match_instances(bin_prediction, label, component_limit=500):
     p_n, p_grains = cv2.connectedComponents(bin_prediction)
     l_n, l_grains = cv2.connectedComponents(label)
 
