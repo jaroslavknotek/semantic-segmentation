@@ -30,8 +30,8 @@ from tqdm.auto import tqdm
 from pathlib import Path
 import matplotlib.pyplot as plt
 
-root = Path('/home/knotek/jupyterlab/micro-precipitates/data/20230623/')
-test_root = Path('/home/knotek/jupyterlab/micro-precipitates/data/test/')
+root = Path('<path to data>')
+test_root = Path('<path to test data>')
 
 
 img_paths = list(root.rglob('img.png'))*10 # HACK
