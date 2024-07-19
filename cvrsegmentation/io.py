@@ -5,7 +5,7 @@ import numpy.typing as npt
 
 import os
 
-logger = logging.getLogger("segmentation.io")
+logger = logging.getLogger("cvrsegmentation.io")
 
 
 def normalize_image(image: npt.NDArray) -> npt.NDArray[np.float32]:

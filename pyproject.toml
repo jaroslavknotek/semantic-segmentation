@@ -58,6 +58,7 @@ dependencies = [
   "torchvision",
   "torchmetrics",
   "segmentation_models_pytorch",
+  "pandas",
 ]
 
 # List additional groups of dependencies here (e.g. development
