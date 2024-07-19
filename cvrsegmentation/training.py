@@ -2,7 +2,7 @@ import torch
 import itertools
 import numpy as np
 from torch.functional import F
-
+from pathlib import Path
 from tqdm.auto import tqdm
 import logging
 
@@ -47,6 +47,8 @@ class EarlyStopper:
 class MetricCheckpointer:
     def __init__(self, model, model_path, min_delta=0):
         self.model = model
+        model_path = Path(model_path)
+        model_path.parent.mkdir(exist_ok=True, parents=True)
         self.model_path = model_path
         self.min_validation_loss = np.inf
         self.min_delta = min_delta
