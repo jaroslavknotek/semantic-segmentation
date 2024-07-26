@@ -75,19 +75,9 @@ test = ["coverage"]
 "Bug Reports" = "https://github.com/jaroslavknotek/semantic-segmentation/issues"
 "Source" = "https://github.com/jaroslavknotek/semantic-segmentation"
 
-# The following would provide a command line executable called `sample`
-# which executes the function `main` from this package when invoked.
-# [project.scripts]
-# sample = "sample:main"
-
-
-# This is configuration specific to the `setuptools` build backend.
-# If you are using a different build backend, you will need to change this.
-[tool.setuptools]
-# If there are data files included in your packages that need to be
-# installed, specify them here.
-package-data = {"sample" = ["*.dat"]}
-py-modules = ['semseg']
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["semseg"]
 
 # pyproject.toml
 [tool.pytest.ini_options]
