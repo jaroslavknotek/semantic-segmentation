@@ -6,7 +6,7 @@ from pathlib import Path
 from tqdm.auto import tqdm
 import logging
 
-logger = logging.getLogger("cvrsegmentation.training")
+logger = logging.getLogger("semseg.training")
 
 
 class StopTrainingException(Exception):

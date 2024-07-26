@@ -1,0 +1,12 @@
+torch
+tqdm
+albumentations
+opencv-python
+imageio
+numpy==1.26.0
+pandas
+scipy
+scikit-learn
+matplotlib
+segmentation-models-pytorch
+torchmetrics

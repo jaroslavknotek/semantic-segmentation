@@ -2,16 +2,22 @@ import numpy as np
 from torch.functional import F
 from tqdm.auto import tqdm
 import torch
+from typing import List
+from semseg.domain import ModelPrediction, NormalizedImage
 
 
-def segment_many(model, imgs, device="cpu"):
+def segment_many(
+    model, imgs: List[NormalizedImage], device="cpu"
+) -> List[ModelPrediction]:
     return [
         segment_image(model, img, device=device)
         for img in tqdm(imgs, desc="Segmenting", total=len(imgs))
     ]
 
 
-def segment_image(model, img, device="cpu", pad_stride=32):
+def segment_image(
+    model, img: NormalizedImage, device="cpu", pad_stride=32
+) -> ModelPrediction:
     img = _ensure_2d(img)
     img = img[None]  # To add channel dimension
     with torch.no_grad():
@@ -20,7 +26,12 @@ def segment_image(model, img, device="cpu", pad_stride=32):
         padded_tensor, pads = pad_to(tensor, pad_stride)
         res_tensor = model(padded_tensor)
         res_unp = unpad(res_tensor, pads)
-        return np.squeeze(res_unp.cpu().detach().numpy())
+        foreground, background, border = np.squeeze(res_unp.cpu().detach().numpy())
+        return ModelPrediction(
+            foreground,
+            background=background,
+            border=border,
+        )
 
 
 def _ensure_2d(img, ensure_float=True):

@@ -12,7 +12,7 @@ import scipy.optimize
 import logging
 
 
-logger = logging.getLogger("cvrsegmentation.instance_matching")
+logger = logging.getLogger("semseg.instance_matching")
 
 
 @dataclass

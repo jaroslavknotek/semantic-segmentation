@@ -5,7 +5,7 @@ jupyter:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.15.0
+      jupytext_version: 1.16.3
   kernelspec:
     display_name: torch_cv
     language: python
@@ -22,7 +22,7 @@ jupyter:
 import logging
 logging.basicConfig(level=logging.INFO)
 
-import cvrsegmentation.io as io
+import semseg.io as io
 ```
 
 ```python
@@ -30,9 +30,9 @@ from tqdm.auto import tqdm
 from pathlib import Path
 import matplotlib.pyplot as plt
 
-root = Path('<path to data>')
-test_root = Path('<path to test data>')
-
+root = Path('/home/knotek/jupyterlab/micro-precipitates/data/20230623/')
+test_root = Path('/home/knotek/jupyterlab/micro-precipitates/data/test/')
+model_path = Path('/home/knotek/jupyterlab/training/segtest/model.pth')
 
 img_paths = list(root.rglob('img.png'))*10 # HACK
 #label_paths = [ p.parent/'label.png' for p in img_paths]
@@ -45,7 +45,7 @@ labels = list(map(io.read_image_normalized,tqdm(label_paths)))
 # Prepare DataLoaders
 
 ```python
-import cvrsegmentation.dataset as ds
+import semseg.dataset as ds
 
 train_augumentation_fn = ds.setup_augumentation(
     patch_size = 256,
@@ -86,7 +86,7 @@ model = Unet(
 # Loss
 
 ```python
-from cvrsegmentation.training import FocalLoss
+from semseg.training import FocalLoss
 
 loss = FocalLoss(alpha = .8,gamma=2)
 ```
@@ -101,7 +101,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 ```
 
 ```python
-from cvrsegmentation.training import train
+from semseg.training import train
 
 train_loss,val_loss = train(
     model,
@@ -113,6 +113,10 @@ train_loss,val_loss = train(
     scheduler_patience= 10
     device = device
 )
+
+model_path.parent.mkdir(exist_ok=True,parents=True)
+torch.save(model, model_path          )
+
 ```
 
 # Test
@@ -126,13 +130,13 @@ test_labels = list(map(io.read_image_normalized,tqdm(test_label_paths)))
 ```
 
 ```python
-import cvrsegmentation.prediction as prd
+import semseg.prediction as prd
 
 preds = prd.segment_many(model,test_imgs,device = device)
 ```
 
 ```python
-import cvrsegmentation.instance_matching as im
+import semseg.instance_matching as im
 
 thr = .5
 

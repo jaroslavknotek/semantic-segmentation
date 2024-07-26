@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 
 [project]
-name = "cvrsegmentation" 
+name = "semseg" 
 version = "0.0.1"  
 
 description = "Project used for semantic/instance segmentation of images"
@@ -92,7 +92,7 @@ test = ["coverage"]
 # If there are data files included in your packages that need to be
 # installed, specify them here.
 package-data = {"sample" = ["*.dat"]}
-py-modules = ['cvrsegmentation']
+py-modules = ['semseg']
 
 # pyproject.toml
 [tool.pytest.ini_options]
