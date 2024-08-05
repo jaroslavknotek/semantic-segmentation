@@ -23,17 +23,17 @@ def read_image_normalized(
 ) -> NormalizedImage:
     image = imageio.imread(image_path)
     image = image.astype(np.float32)
-    image = normalize_image(image)
     match image.shape:
         case (_, _):
-            return image.astype(dtype)
+            image= image.astype(dtype)
         case (_, _, 1):
-            return image[:, :, 0].astype(dtype)
+            image= image[:, :, 0].astype(dtype)
         case (_, _, 2):
-            return image[:, :, 0].astype(dtype)
+            image= image[:, :, 0].astype(dtype)
         case _:
-            return rgb2gray(image)
+            image= rgb2gray(image)
 
+    return normalize_image(image)
 
 def rgb2gray(rgb):
     return np.dot(rgb[:, :, :3], [0.2989, 0.5870, 0.1140])

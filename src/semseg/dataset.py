@@ -22,11 +22,14 @@ class SegmentationDataset(Dataset):
         images: List[npt.NDArray],
         labels: List[npt.NDArray],
         transform: AugTransform,
+        x_channels = 1,
     ):
         self.images = [np.float32(img) for img in images]
         self.labels = [np.float32(label) for label in labels]
         assert len(images) == len(labels), f"{len(images)=}!={len(labels)=}"
         self.transform = transform
+        
+        self.x_channels = x_channels
 
     def __len__(self) -> int:
         return len(self.images)
@@ -43,7 +46,7 @@ class SegmentationDataset(Dataset):
         image_aug, label_aug = self._transform(image, label)
 
         y = label_to_classes(label_aug)
-        x = image_aug[None]
+        x = np.stack([image_aug]*self.x_channels)
 
         return {
             "x": x,
@@ -153,6 +156,7 @@ def prepare_dataloaders(
     batch_size: int = 32,
     val_size: float = 0.33,
     seed: int = 123,
+    x_channels = 1,
 ) -> Tuple[DataLoader, DataLoader]:
     img_train, img_val, label_train, label_val = ms.train_test_split(
         imgs, labels, test_size=val_size, random_state=seed
@@ -162,11 +166,13 @@ def prepare_dataloaders(
         img_train,
         label_train,
         train_augumentation_fn,
+        x_channels = x_channels
     )
     dataset_val = SegmentationDataset(
         img_val,
         label_val,
         val_augumentation_fn,
+        x_channels,
     )
 
     train_dataloader = DataLoader(

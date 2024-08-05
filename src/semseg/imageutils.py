@@ -9,3 +9,9 @@ def extract_components_sorted(bin_img, connectivity=8):
     area_sizes = [np.sum(area) for area in areas]
     arg_sorted = np.argsort(area_sizes)
     return areas[arg_sorted]
+
+def fill_holes(bin_mask):
+    des = np.zeros_like(bin_mask)
+    contours,hier = cv2.findContours(bin_mask,cv2.RETR_CCOMP,cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(des,contours,0,1,-1)
+    return des

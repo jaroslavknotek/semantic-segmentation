@@ -7,19 +7,19 @@ from semseg.domain import ModelPrediction, NormalizedImage
 
 
 def segment_many(
-    model, imgs: List[NormalizedImage], device="cpu"
+    model, imgs: List[NormalizedImage], device="cpu",x_channels=1
 ) -> List[ModelPrediction]:
     return [
-        segment_image(model, img, device=device)
+        segment_image(model, img, device=device, x_channels=x_channels)
         for img in tqdm(imgs, desc="Segmenting", total=len(imgs))
     ]
 
 
 def segment_image(
-    model, img: NormalizedImage, device="cpu", pad_stride=32
+    model, img: NormalizedImage, device="cpu", pad_stride=32, x_channels=1
 ) -> ModelPrediction:
     img = _ensure_2d(img)
-    img = img[None]  # To add channel dimension
+    img = np.stack([img]*x_channels)# To add channel dimension
     with torch.no_grad():
         tensor = torch.from_numpy(img).to(device)
         tensor = tensor[None]  # To add batch dimension
@@ -32,7 +32,6 @@ def segment_image(
             background=background,
             border=border,
         )
-
 
 def _ensure_2d(img, ensure_float=True):
     match img.shape:
