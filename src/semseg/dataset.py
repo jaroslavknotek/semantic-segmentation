@@ -24,9 +24,11 @@ class SegmentationDataset(Dataset):
         transform: AugTransform,
         x_channels = 1,
     ):
+        assert len(images) == len(labels), f"{len(images)=}!={len(labels)=}"
+        
         self.images = [np.float32(img) for img in images]
         self.labels = [np.float32(label) for label in labels]
-        assert len(images) == len(labels), f"{len(images)=}!={len(labels)=}"
+        
         self.transform = transform
         
         self.x_channels = x_channels
@@ -85,13 +87,12 @@ def _get_border(foreground_label: npt.NDArray) -> npt.NDArray:
 def setup_augumentation(
     patch_size: int,
     *,
-    elastic: bool = False,
-    brightness_contrast: bool = False,
+    advanced: bool = False,
     flip_vertical: bool = False,
     flip_horizontal: bool = False,
-    blur_sharp_power: float | None = None,  # 1
-    noise_value: float | None = None,  # .01
-    rotate_deg: int | None = None,  # 90
+    blur_sharp_power: float | None = None, 
+    noise_value: float | None = None,  
+    rotate_deg: int | None = None,  
     interpolation: int = cv2.INTER_CUBIC,
 ) -> AugTransform:
     patch_size_padded = int(patch_size * 1.5)
@@ -99,26 +100,23 @@ def setup_augumentation(
         A.PadIfNeeded(patch_size_padded, patch_size_padded),
         A.RandomCrop(patch_size_padded, patch_size_padded),
     ]
-
-    if elastic:
+       
+    if advanced:
         transform_list += [
-            A.ElasticTransform(
-                p=0.5,
-                alpha=10,
-                sigma=12,
-                alpha_affine=12,
-                interpolation=interpolation,
-            )
+            A.Perspective(p=.2),
+            A.GridDistortion(p=.2,num_steps=17),
+            A.RandomGridShuffle(p=.2,grid=(13,13)),
         ]
     if rotate_deg is not None:
         transform_list += [
             A.Rotate(limit=rotate_deg, interpolation=interpolation),
         ]
-
-    if brightness_contrast:
-        transform_list += [
-            A.RandomBrightnessContrast(p=0.5),
-        ]
+    
+    # this potentially destroys images
+    # if brightness_contrast:
+    #     transform_list += [
+    #         A.RandomBrightnessContrast(p=0.5), 
+    #     ]
     if noise_value is not None:
         transform_list += [
             A.augmentations.transforms.GaussNoise(noise_value, p=0.5),
@@ -129,7 +127,7 @@ def setup_augumentation(
             A.OneOf(
                 [
                     A.Sharpen(p=1, alpha=(0.2, 0.2 * blur_sharp_power)),
-                    A.Blur(blur_limit=3 * blur_sharp_power, p=1),
+                    A.AdvancedBlur(p=1),
                 ],
                 p=0.3,
             ),

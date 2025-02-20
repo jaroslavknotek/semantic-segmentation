@@ -5,6 +5,7 @@ from torch.functional import F
 from pathlib import Path
 from tqdm.auto import tqdm
 import logging
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 logger = logging.getLogger("semseg.training")
 
@@ -68,7 +69,7 @@ class MetricCheckpointer:
 
         best_val_loss = self.min_validation_loss
         logger.info(
-            f"checkpoint best model {before_val_loss=:.5} -> {best_val_loss:.5}"
+            f"Improvement {before_val_loss=:.5} -> {best_val_loss:.5}! Checkpointing model!"
         )
 
         torch.save(self.model, self.model_path)
@@ -130,17 +131,18 @@ def train(
     train_losses = []
     validation_losses = []
     epochs_iter = range(epochs) if epochs is not None else itertools.count()
-    for epoch in tqdm(epochs_iter, desc="Training epochs"):
-        try:
-            loss_train, loss_val = run_epoch(
-                train_epoch_fn, eval_epoch_fn, after_callbacks
-            )
-            train_losses.append(loss_train)
-            validation_losses.append(loss_val)
+    with logging_redirect_tqdm(),tqdm(epochs_iter, desc="Training epochs") as t:
+        for epoch in t:
+            try:
+                loss_train, loss_val = run_epoch(
+                    train_epoch_fn, eval_epoch_fn, after_callbacks
+                )
+                train_losses.append(loss_train)
+                validation_losses.append(loss_val)
 
-            logger.info(f"{epoch=} {loss_val=:.5f}")
-        except StopTrainingException:
-            break
+                t.set_postfix(epoch=epoch,validation_loss=loss_val)
+            except StopTrainingException:
+                break
 
     return train_losses, validation_losses
 
