@@ -26,12 +26,14 @@ def segment_image(
         padded_tensor, pads = pad_to(tensor, pad_stride)
         res_tensor = model(padded_tensor)
         res_unp = unpad(res_tensor, pads)
-        foreground, background, border = np.squeeze(res_unp.cpu().detach().numpy())
+        foreground, background, border, artifacts = np.squeeze(res_unp.cpu().detach().numpy())
         return ModelPrediction(
             foreground,
             background=background,
             border=border,
+            artifacts=artifacts,
         )
+
 
 def _ensure_2d(img, ensure_float=True):
     match img.shape:

@@ -20,10 +20,11 @@ class ModelPrediction(np.ndarray):
             buffer=foreground.flatten(),
         )
 
-    def __init__(self, foreground, background=None, border=None):
+    def __init__(self, foreground, background=None, border=None, artifacts=None):
         self.background = background
         self.border = border
         self.foreground = foreground
+        self.artifacts = artifacts
 
     def to_uint8_gs_image(self):
         return (self * 255).astype(np.uint8)
