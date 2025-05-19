@@ -7,11 +7,16 @@ from semseg.domain import ModelPrediction, NormalizedImage
 
 
 def segment_many(
-    model, imgs: List[NormalizedImage], device="cpu",x_channels=1
+    model, 
+    imgs: List[NormalizedImage], 
+    device="cpu",
+    x_channels=1,
+    use_tqdm = False,
 ) -> List[ModelPrediction]:
+    imgs_it = tqdm(imgs, desc="Segmenting", total=len(imgs),disable = not use_tqdm)
     return [
         segment_image(model, img, device=device, x_channels=x_channels)
-        for img in tqdm(imgs, desc="Segmenting", total=len(imgs))
+        for img in imgs_it
     ]
 
 
