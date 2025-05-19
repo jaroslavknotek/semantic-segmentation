@@ -76,6 +76,17 @@ class MetricCheckpointer:
         return True
 
 
+class DiceLoss:
+    def __init__(self, smooth=1):
+        self.smooth = smooth
+    
+    def __call__(self, pred, target):
+        #pred = torch.sigmoid(pred)
+        intersection = (pred * target).sum(dim=(2, 3))
+        union = pred.sum(dim=(2, 3)) + target.sum(dim=(2, 3))
+        dice = (2. * intersection + self.smooth) / (union + self.smooth)
+        return 1 - dice.mean()
+    
 class FocalLoss(torch.nn.Module):
     def __init__(
         self,
@@ -105,6 +116,7 @@ def train(
     checkpoint_path=None,
     lr=0.001,
     device="cpu",
+    use_tqdm = False,
 ):
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -122,8 +134,9 @@ def train(
     if scheduler_patience is not None:
         after_callbacks += [setup_scheduler(optimizer, scheduler_patience)]
 
+    early_stopper = EarlyStopper(patience=patience, min_delta=0)
     if patience is not None:
-        after_callbacks += [EarlyStopper(patience=patience, min_delta=0)]
+        after_callbacks += [early_stopper]
 
     if checkpoint_path is not None:
         after_callbacks += [MetricCheckpointer(model, checkpoint_path)]
@@ -131,7 +144,7 @@ def train(
     train_losses = []
     validation_losses = []
     epochs_iter = range(epochs) if epochs is not None else itertools.count()
-    with logging_redirect_tqdm(),tqdm(epochs_iter, desc="Training epochs") as t:
+    with logging_redirect_tqdm(),tqdm(epochs_iter, desc="Training epochs",disable= not use_tqdm) as t:
         for epoch in t:
             try:
                 loss_train, loss_val = run_epoch(
@@ -140,7 +153,11 @@ def train(
                 train_losses.append(loss_train)
                 validation_losses.append(loss_val)
 
-                t.set_postfix(epoch=epoch,validation_loss=loss_val)
+                t.set_postfix(
+                    epoch=epoch,
+                    validation_loss=loss_val,
+                    patience = f"{early_stopper.counter}/{patience}"
+                )
             except StopTrainingException:
                 break
 

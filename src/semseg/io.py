@@ -38,3 +38,11 @@ def read_image_normalized(
 
 def rgb2gray(rgb):
     return np.dot(rgb[:, :, :3], [0.2989, 0.5870, 0.1140])
+
+def image_write(
+    image_path: os.PathLike,
+    img_float_single_channel: npt.NDArray
+):
+    img_uint8 = np.uint8(img_float_single_channel*255)
+    img_uint8_3ch = np.dstack([img_uint8]*3)
+    imageio.imwrite(image_path, img_uint8_3ch)

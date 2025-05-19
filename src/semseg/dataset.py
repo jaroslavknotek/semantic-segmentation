@@ -1,3 +1,9 @@
+
+from pathlib import Path
+import semseg.io as io
+from tqdm.cli import tqdm
+import semseg.imageutils as iu
+import semseg.helpers as hpr
 import numpy as np
 import albumentations as A
 import cv2
@@ -94,29 +100,58 @@ def setup_augumentation(
     noise_value: float | None = None,  
     rotate_deg: int | None = None,  
     interpolation: int = cv2.INTER_CUBIC,
+    non_empty = True,
+    erasing = False,
+    square_sym = False,
+    grid_shuffle = False
 ) -> AugTransform:
     patch_size_padded = int(patch_size * 1.5)
     transform_list = [
         A.PadIfNeeded(patch_size_padded, patch_size_padded),
-        A.RandomCrop(patch_size_padded, patch_size_padded),
     ]
-       
+    
+    # crop to save performance for more advanced ops
+    if non_empty:
+        transform_list.append(
+            A.CropNonEmptyMaskIfExists(
+                height=patch_size_padded,
+                width=patch_size_padded,
+                ignore_values=None,
+                ignore_channels=None,
+                p=1,
+            )
+        )
+    else:
+        A.RandomCrop(patch_size_padded, patch_size_padded)
+        
     if advanced:
         transform_list += [
             A.Perspective(p=.2),
             A.GridDistortion(p=.2,num_steps=17),
             A.RandomGridShuffle(p=.2,grid=(13,13)),
         ]
-    if rotate_deg is not None:
-        transform_list += [
-            A.Rotate(limit=rotate_deg, interpolation=interpolation),
-        ]
-    
+        
     # this potentially destroys images
     # if brightness_contrast:
     #     transform_list += [
     #         A.RandomBrightnessContrast(p=0.5), 
     #     ]
+            
+    if erasing:
+        transform_list.append(
+            A.Erasing(
+                p=.5,
+                fill_mask=0,
+                fill = 'random_uniform',
+                scale = (.05,.2)
+            )
+        )
+    if rotate_deg is not None:
+        transform_list += [
+            A.Rotate(limit=rotate_deg, interpolation=interpolation),
+        ]
+    transform_list += [A.CenterCrop(patch_size, patch_size)]
+    
     if noise_value is not None:
         transform_list += [
             A.augmentations.transforms.GaussNoise(noise_value, p=0.5),
@@ -132,6 +167,7 @@ def setup_augumentation(
                 p=0.3,
             ),
         ]
+        
 
     if flip_horizontal:
         transform_list += [
@@ -141,8 +177,17 @@ def setup_augumentation(
         transform_list += [
             A.VerticalFlip(p=0.5),
         ]
-
-    transform_list += [A.CenterCrop(patch_size, patch_size)]
+        
+    if square_sym:
+        transform_list += [
+            A.SquareSymmetry(p = .6),
+        ]
+    
+    if grid_shuffle:
+        transform_list += [
+            A.RandomGridShuffle(grid=(3, 3), p=.8)
+        ]
+        
     return A.Compose(transform_list)
 
 
@@ -184,3 +229,54 @@ def prepare_dataloaders(
         shuffle=False,
     )
     return train_dataloader, val_dataloader
+
+
+def read_img_w_labels(
+    data_root,
+    image_name = "img.png", 
+    label_name = "label.png", 
+    use_tqdm = False,
+    small_filter = None
+):
+    if small_filter is None:
+        small_filter = 0
+    
+    img_paths = list(Path(data_root).rglob(image_name))
+    label_paths = [ p.parent/'label.png' for p in img_paths]
+
+    img_iter = tqdm(
+        img_paths,
+        disable = not use_tqdm, 
+        desc = "Loading images"
+    )
+    imgs = list(map(io.read_image_normalized,img_iter))
+    labels = map(io.read_image_normalized,label_paths)
+    lbl_iter = tqdm(
+        labels,
+        total=len(imgs),
+        disable = not use_tqdm, 
+        desc = f"Loading and filtering {small_filter=} labels"
+    )
+    labels = [ iu.filter_small(label,small_filter) for label in lbl_iter]
+    
+    return {p.parent.stem:(img,label) for p,(img,label) in zip(img_paths, zip(imgs,labels))}
+
+
+def load_train_test_images_w_labels(train_root,test_filepath, small_filter,use_tqdm=False):    
+    train_dict = read_img_w_labels(train_root,small_filter = small_filter,use_tqdm = use_tqdm)
+
+    test_img_names =  None
+    with open(test_filepath) as f:
+        test_img_names = set([l.strip() for l in f.readlines()])
+        
+
+    tests = [ train_dict[name] for name in test_img_names]
+    test_imgs, test_labels = hpr.unzip2(tests)
+    test_imgs, test_labels = list(test_imgs), list(test_labels)
+
+    imgs,labels = hpr.unzip2([ v for k,v in train_dict.items() if k not in test_img_names])
+    imgs,labels = list(imgs),list(labels)
+    if len(test_imgs) + len(imgs) != len(train_dict):
+        logging.warning("Number of train + test does not match the number of all images. Most likely test contains names that were not found")
+        
+    return (imgs, labels),(test_imgs,test_labels)
