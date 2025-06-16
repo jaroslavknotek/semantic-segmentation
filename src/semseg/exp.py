@@ -16,7 +16,6 @@ import semseg.prediction as prd
 
 from types import SimpleNamespace
 
-import semseg.exp as exp
 from tqdm.contrib.logging import logging_redirect_tqdm
 from semseg.training import train
 import semseg.prediction as prd
@@ -28,6 +27,7 @@ def create_dataloaders(
     data_params,
     imgs,
     labels,
+    label_to_classes_fn = None,
     use_tqdm = False
 ):
     patch_size = data_params.patch_size
@@ -49,9 +49,10 @@ def create_dataloaders(
         labels,
         train_augumentation_fn,
         val_augumentation_fn,
-        batch_size= 32,
+        batch_size= data_params.batch_size,
         val_size = 0.25,
-        x_channels=x_channels
+        x_channels=x_channels,
+        label_to_classes_fn = label_to_classes_fn,
     )
     
     return (train_dl, val_dl)
@@ -60,11 +61,11 @@ def prepare_model(model_params):
     decoder_channels = np.array([model_params.starting_decoder_channel]*model_params.encoder_depth)
     pows = list(range(model_params.encoder_depth))
     decoder_channels = decoder_channels * [2**p for p in pows]
-    
+    num_classes = model_params.num_classes
     return Unet(
         encoder_name=model_params.encoder_name,
         in_channels=model_params.x_channels,
-        classes=3,
+        classes=num_classes,
         activation="sigmoid",
         encoder_depth = model_params.encoder_depth,
         decoder_channels = decoder_channels, 
@@ -187,7 +188,7 @@ def run_experiment(
         # "scheduler_patience":None,
     })
     
-    results, model, test_preds, test_imgs,test_labels =  exp.run_training_loop(
+    results, model, test_preds, test_imgs,test_labels =  run_training_loop(
         data_params,
         model_params,
         training_params,

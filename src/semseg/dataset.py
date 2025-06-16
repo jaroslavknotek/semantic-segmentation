@@ -1,4 +1,4 @@
-
+import logging
 from pathlib import Path
 import semseg.io as io
 from tqdm.cli import tqdm
@@ -13,10 +13,9 @@ from torch.utils.data import Dataset
 
 import sklearn.model_selection as ms
 import numpy.typing as npt
-from typing import TypeAlias
+from typing import TypeAlias, Callable
 
 AugOutput: TypeAlias = dict[str, npt.NDArray]
-
 
 class AugTransform(Protocol):
     def __call__(self, image: npt.NDArray, mask: npt.NDArray) -> AugOutput: ...
@@ -29,6 +28,7 @@ class SegmentationDataset(Dataset):
         labels: List[npt.NDArray],
         transform: AugTransform,
         x_channels = 1,
+        label_to_classes_fn:Callable[[npt.NDArray],npt.NDArray]|None = None,
     ):
         assert len(images) == len(labels), f"{len(images)=}!={len(labels)=}"
         
@@ -36,8 +36,8 @@ class SegmentationDataset(Dataset):
         self.labels = [np.float32(label) for label in labels]
         
         self.transform = transform
-        
         self.x_channels = x_channels
+        self.lbl2cls = label_to_classes_fn
 
     def __len__(self) -> int:
         return len(self.images)
@@ -53,7 +53,13 @@ class SegmentationDataset(Dataset):
         label = self.labels[idx]
         image_aug, label_aug = self._transform(image, label)
 
-        y = label_to_classes(label_aug)
+        if self.lbl2cls:
+            y = self.lbl2cls(label_aug)
+        elif len(label_aug.shape) > 2:
+            y = np.rollaxis(label_aug,-1)
+        else:
+            y = label_aug
+
         x = np.stack([image_aug]*self.x_channels)
 
         return {
@@ -200,6 +206,7 @@ def prepare_dataloaders(
     val_size: float = 0.33,
     seed: int = 123,
     x_channels = 1,
+    label_to_classes_fn = None,
 ) -> Tuple[DataLoader, DataLoader]:
     img_train, img_val, label_train, label_val = ms.train_test_split(
         imgs, labels, test_size=val_size, random_state=seed
@@ -209,13 +216,15 @@ def prepare_dataloaders(
         img_train,
         label_train,
         train_augumentation_fn,
-        x_channels = x_channels
+        x_channels = x_channels,
+        label_to_classes_fn = label_to_classes_fn,
     )
     dataset_val = SegmentationDataset(
         img_val,
         label_val,
         val_augumentation_fn,
         x_channels,
+        label_to_classes_fn = label_to_classes_fn,
     )
 
     train_dataloader = DataLoader(
@@ -242,7 +251,7 @@ def read_img_w_labels(
         small_filter = 0
     
     img_paths = list(Path(data_root).rglob(image_name))
-    label_paths = [ p.parent/'label.png' for p in img_paths]
+    label_paths = [ p.parent/label_name for p in img_paths]
 
     img_iter = tqdm(
         img_paths,
