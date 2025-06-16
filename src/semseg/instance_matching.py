@@ -1,46 +1,57 @@
 import numpy as np
 import torch
 import itertools
+import pandas as pd
 import cv2
 from dataclasses import dataclass
 import pandas as pd
 import numpy.typing as npt
 from torchmetrics.classification import BinaryJaccardIndex
-
+from tqdm.cli import tqdm
 import scipy.optimize
-
+import semseg.imageutils as iu
+import semseg.feret as fer
 import logging
-
 
 logger = logging.getLogger("semseg.instance_matching")
 
 
 @dataclass
-class SegmentationInstance:
-    """Instance Shape"""
-
-    mask: npt.NDArray
-    image: npt.NDArray
-    top_left_x: int
-    top_left_y: int
-    width: int
-    height: int
-
-
-@dataclass
 class SegmentationInstanceFeatures:
     """Precipitate features"""
+    
+    area_px:float
+    area_per:float
+    d0:float
+    roundness:float
+    feret_min:float
+    feret_max:float
+    feret_90:float
+    slope:float
+   
 
-    ellipse_width_px: float
-    ellipse_height_px: float
-    ellipse_center_x: float
-    ellipse_center_y: float
-    ellipse_angle_deg: float
-    circle_x: float
-    circle_y: float
-    circle_radius: float
-    area_px: float
-    shape: str
+@dataclass
+class BoundingBox:
+    top:int
+    left:int
+    bottom:int
+    right:int
+
+    @property
+    def width(self):
+        return self.right - self.left
+    
+    @property
+    def height(self):
+        return self.bottom - self.top
+    
+@dataclass
+class SegmentationInstance:
+    """Instance Shape"""
+    mask: npt.NDArray
+    image: npt.NDArray
+    bounding_box: BoundingBox
+
 
 
 def measure_precision_recall_f1(bin_prediction, label, component_limit=500):
@@ -63,8 +74,12 @@ def measure_precision_recall_f1(bin_prediction, label, component_limit=500):
         recall = len(tp) / grains_label
     else:
         recall = np.nan
-
-    f1 = 2 * (precision * recall) / (precision + recall)
+    
+    pr = precision + recall
+    if pr == 0:
+        return np.nan,np.nan,np.nan
+    
+    f1 = 2 * (precision * recall) / pr
     return precision, recall, f1
 
 
@@ -169,3 +184,88 @@ def _collect_pairing_weights(p_n, p_grains, l_n, l_grains):
             weights_dict.setdefault(p_grain_id, {}).setdefault(l_grain_id, weight)
 
     return weights_dict
+
+
+def measure_labeled(
+    thr, 
+    labels,
+    predictions,
+    small_filter,
+    component_limit=1000,
+    use_tqdm = False
+):
+    precisions = []
+    recalls = []
+    for label,prediction in tqdm(list(zip(labels,predictions)),disable=not use_tqdm):
+        pred_thr = np.uint8(prediction>=thr)
+        label_thr = np.uint8(label)
+        pred_thr = iu.filter_small(pred_thr,small_filter)
+        
+        precision,recall,f1 = measure_precision_recall_f1(pred_thr,label_thr,component_limit=component_limit)
+        precisions.append(precision)
+        recalls.append(recall)
+        
+    mean_precision = np.mean(precisions)
+    mean_recall = np.mean(recalls)
+    mean_f1 = 2* (mean_precision*mean_recall)/(mean_precision + mean_recall)
+    return mean_precision,mean_recall, mean_f1
+
+
+
+def extract_individuals(img,mask):
+    n,arr = cv2.connectedComponents(mask)
+    
+    masks = [np.uint8(arr == i) for i in range(1,n)]
+    bbs = list(map(get_bounding_box,masks))
+    
+    cropped_masks = (mask[bb.top:bb.bottom,bb.left:bb.right] for bb in bbs)
+    cropped_imgs = (img[bb.top:bb.bottom,bb.left:bb.right] for bb in bbs)
+    return [
+        SegmentationInstance(
+            mask = mask_cropped,
+            image = img_cropped,
+            bounding_box = bb
+        )
+        for img_cropped,mask_cropped,bb
+        in zip(cropped_imgs,cropped_masks,bbs)
+    ]
+    
+    #areas = np.array([np.sum(small_mask) for small_mask in masks])
+    # if include_mask:
+    #     masks_cropped = map(_crop_to_content,masks)
+    #     data = list(zip(areas,masks_cropped))
+    #     return pd.DataFrame(data,columns=['area_px','mask'])
+    # else:
+    #     return pd.DataFrame(areas[None].T,columns=['area_px'])
+
+def cleanup_prediction(pred, thr, small_filter):
+    filtered_pred = iu.filter_small(pred>thr,small_filter)
+    return np.uint8(filtered_pred)
+
+
+def get_bounding_box(mask):
+    nz = np.nonzero(mask)
+    t,b = np.min(nz[0]), np.max(nz[0])
+    l,r = np.min(nz[1]), np.max(nz[1])
+    return BoundingBox(top=t,left=l,bottom=b,right = r)
+
+def calculate_features(instance, full_mask):
+    prec_mask = instance.mask
+    bb = instance.bounding_box
+    area_px = int(np.sum(prec_mask))
+    
+    
+    feret_mask = np.pad(prec_mask,1)
+    (feret_min,feret_max),(_,max_points) = fer.get_min_max_feret_from_mask(feret_mask)
+    feret_90, slope = fer.get_feret90_w_slope(feret_mask, max_points)
+
+    return SegmentationInstanceFeatures(
+        area_px = np.sum(prec_mask),
+        area_per = float(area_px/np.prod(full_mask.shape)),
+        d0 = np.sqrt(area_px/np.pi),
+        roundness = np.min([bb.height,bb.width])/np.max([bb.height,bb.width]),
+        feret_min = feret_min,
+        feret_max = feret_max,
+        feret_90 = feret_90,
+        slope = slope,
+    )
