@@ -5,6 +5,10 @@ import numpy.typing as npt
 from dataclasses import dataclass
 import pandas as pd
 
+
+UM = 10**(-6)
+
+
 @dataclass
 class SegmentationResults:
     img:npt.NDArray
@@ -53,13 +57,17 @@ def save_results(results_dir,results):
     df = pd.concat([df_bb,df_features],axis = 1)
     if results.pixel_size:
         df['pixel_size'] = results.pixel_size
+        # converting square units works bit different, hence the following
         square_pixel_area_um = convert_px2um(1,df['pixel_size'])**2
         df['area_um'] = square_pixel_area_um*df['area_px']
+        
+        cols = ['feret_min','feret_max','feret_90']
+        for c in cols:
+            df[f"{c}_um"] = convert_px2um(df[f"{c}_px"],df['pixel_size'])
 
     csv_path = results_dir/'precipitates.csv'
     df.to_csv(csv_path,header=True,index=False)
     
     
 def convert_px2um(px,pixel_size):
-    um = 10**(-6)
-    return pixel_size / (um/px)
+    return pixel_size / (UM/px)

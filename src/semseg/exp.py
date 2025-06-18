@@ -78,7 +78,7 @@ def resolve_loss(loss_name):
         case "dice":
             return DiceLoss()
         case "fl":
-            return FocalLoss(alpha = .8,gamma=2)
+            return FocalLoss(alpha = .9,gamma=.8)
         case _:
             raise ValueError(f"invalid loss {loss_name=}")
             
@@ -90,6 +90,7 @@ def run_training_loop(
     training_params,
     device,
     loaded_images,
+    test_thrs = [.25,.5,.75],
     use_tqdm=True
 ):  
     model_path = training_params.model_path
@@ -123,7 +124,7 @@ def run_training_loop(
         use_tqdm = use_tqdm
     )
     results = {}
-    for thr in np.linspace(.25,.75,3):
+    for thr in test_thrs:
         mean_precision,    mean_recall,    mean_f1 = im.measure_labeled(
             thr,
             test_labels,
@@ -148,6 +149,7 @@ def run_experiment(
     patch_size,
     small_filter, 
     loaded_images, 
+    test_thrs = [.25,.5,.75],
     use_tqdm = False, 
     device = None
 ):
@@ -193,6 +195,7 @@ def run_experiment(
         training_params,
         device,
         loaded_images,
+        test_thrs = test_thrs,
         use_tqdm = use_tqdm
     )
     model_path.parent.mkdir(exist_ok=True,parents=True)

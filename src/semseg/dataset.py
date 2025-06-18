@@ -27,7 +27,7 @@ class SegmentationDataset(Dataset):
         self,
         images: List[npt.NDArray],
         labels: List[npt.NDArray],
-        transform: AugTransform,
+        transform: AugTransform|None = None,
         x_channels = 1,
     ):
         assert len(images) == len(labels), f"{len(images)=}!={len(labels)=}"
@@ -43,10 +43,13 @@ class SegmentationDataset(Dataset):
         return len(self.images)
 
     def _transform(self, image, label) -> Tuple[npt.NDArray, npt.NDArray]:
-        transformed = self.transform(image=image, mask=label)
-        tr_image = transformed["image"]
-        tr_label = transformed["mask"]
-        return tr_image, tr_label
+        if self.transform:
+            transformed = self.transform(image=image, mask=label)
+            tr_image = transformed["image"]
+            tr_label = transformed["mask"]
+            return tr_image, tr_label
+        else:
+            return image,label
 
     def __getitem__(self, idx) -> Dict[str, npt.NDArray]:
         image = self.images[idx]
@@ -221,11 +224,13 @@ def prepare_dataloaders(
     train_dataloader = DataLoader(
         dataset_train,
         batch_size=batch_size,
+        num_workers = 4,
         shuffle=True,
     )
     val_dataloader = DataLoader(
         dataset_val,
         batch_size=batch_size,
+        num_workers = 4,
         shuffle=False,
     )
     return train_dataloader, val_dataloader
@@ -262,10 +267,13 @@ def read_img_w_labels(
     return {p.parent.stem:(img,label) for p,(img,label) in zip(img_paths, zip(imgs,labels))}
 
 
-def load_train_test_images_w_labels(train_root,test_filepath, small_filter,use_tqdm=False):    
+def load_train_test_images_w_labels(train_root,small_filter, test_filepath = None, use_tqdm=False):    
     train_dict = read_img_w_labels(train_root,small_filter = small_filter,use_tqdm = use_tqdm)
 
     test_img_names =  None
+    if test_filepath is None:
+        test_filepath = train_root/'test.txt'
+        
     with open(test_filepath) as f:
         test_img_names = set([l.strip() for l in f.readlines()])
         

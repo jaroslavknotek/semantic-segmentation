@@ -24,9 +24,9 @@ class SegmentationInstanceFeatures:
     area_per:float
     d0:float
     roundness:float
-    feret_min:float
-    feret_max:float
-    feret_90:float
+    feret_min_px:float
+    feret_max_px:float
+    feret_90_px:float
     slope:float
    
 
@@ -264,8 +264,8 @@ def calculate_features(instance, full_mask):
         area_per = float(area_px/np.prod(full_mask.shape)),
         d0 = np.sqrt(area_px/np.pi),
         roundness = np.min([bb.height,bb.width])/np.max([bb.height,bb.width]),
-        feret_min = feret_min,
-        feret_max = feret_max,
-        feret_90 = feret_90,
+        feret_min_px = feret_min,
+        feret_max_px = feret_max,
+        feret_90_px = feret_90,
         slope = slope,
     )
