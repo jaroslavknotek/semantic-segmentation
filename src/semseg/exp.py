@@ -27,8 +27,7 @@ import semseg.imageutils as iu
 def create_dataloaders(
     data_params,
     imgs,
-    labels,
-    use_tqdm = False
+    labels
 ):
     patch_size = data_params.patch_size
     x_channels = data_params.x_channels

@@ -21,14 +21,13 @@ AugOutput: TypeAlias = dict[str, npt.NDArray]
 class AugTransform(Protocol):
     def __call__(self, image: npt.NDArray, mask: npt.NDArray) -> AugOutput: ...
 
-
 class SegmentationDataset(Dataset):
     def __init__(
         self,
         images: List[npt.NDArray],
         labels: List[npt.NDArray],
         transform: AugTransform|None = None,
-        x_channels = 1,
+        img_channels = 1,
     ):
         assert len(images) == len(labels), f"{len(images)=}!={len(labels)=}"
         
@@ -36,8 +35,7 @@ class SegmentationDataset(Dataset):
         self.labels = [np.float32(label) for label in labels]
         
         self.transform = transform
-        
-        self.x_channels = x_channels
+        self.img_channels = img_channels
 
     def __len__(self) -> int:
         return len(self.images)
@@ -54,10 +52,30 @@ class SegmentationDataset(Dataset):
     def __getitem__(self, idx) -> Dict[str, npt.NDArray]:
         image = self.images[idx]
         label = self.labels[idx]
-        image_aug, label_aug = self._transform(image, label)
+        image_aug, y = self._transform(image, label)
 
-        y = label_to_classes(label_aug)
-        x = np.stack([image_aug]*self.x_channels)
+        x = np.stack([image_aug]*self.img_channels)
+        if len(y.shape) > 2:
+            # e.g. channel last
+            y = np.rollaxis(y,-1)
+        
+        return x,y
+
+
+
+class DelisaSegmentationDataset(SegmentationDataset):
+    # def __init__(
+    #     self,
+    #     images: List[npt.NDArray],
+    #     labels: List[npt.NDArray],
+    #     transform: AugTransform|None = None,
+    #     x_channels = 1,
+    # ):
+    #     super().__init__(images,labels,transform=transform,x_channels = x_channels)
+
+    def __getitem__(self, idx) -> Dict[str, npt.NDArray]:
+        x,plain_y = super().__getitem__(self,ids)
+        y = label_to_classes(plain_y)
 
         return {
             "x": x,
@@ -202,7 +220,7 @@ def prepare_dataloaders(
     batch_size: int = 32,
     val_size: float = 0.33,
     seed: int = 123,
-    x_channels = 1,
+    img_channels = 1,
 ) -> Tuple[DataLoader, DataLoader]:
     img_train, img_val, label_train, label_val = ms.train_test_split(
         imgs, labels, test_size=val_size, random_state=seed
@@ -212,13 +230,13 @@ def prepare_dataloaders(
         img_train,
         label_train,
         train_augumentation_fn,
-        x_channels = x_channels
+        img_channels = img_channels
     )
     dataset_val = SegmentationDataset(
         img_val,
         label_val,
         val_augumentation_fn,
-        x_channels,
+        img_channels,
     )
 
     train_dataloader = DataLoader(
